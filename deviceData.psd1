@@ -9,6 +9,7 @@
     'Canon EOS 7D Mark II' = '7DM2';
     'Canon EOS DIGITAL REBEL XT' = 'RXT';
     'Canon EOS M' = 'EOSM';
+    'Canon EOS M50' = 'EOSM50';
     'Canon EOS-1Ds Mark II' = '1DM2';
     'Canon EOS REBEL T2i' = 'T2i';
     'Canon PowerShot A70' = 'A70';
