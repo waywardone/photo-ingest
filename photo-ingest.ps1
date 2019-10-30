@@ -36,15 +36,15 @@ function sanityCheck
         Write-Error "$srcdir doesn't exist. Provide a valid directory with source images." -ErrorAction Stop
     }
 
-    if (!( Test-Path $PSScriptRoot\cameraModels.psd1))
+    if (!( Test-Path $PSScriptRoot\photo-ingest-deviceData.psd1))
     {
-        Write-Error "$PSScriptRoot\cameraModels.psd1 doesn't exist." -ErrorAction Stop
+        Write-Error "$PSScriptRoot\photo-ingest-deviceData.psd1 doesn't exist." -ErrorAction Stop
     }
 }
 
 function genCustomTagConfig
 {
-    $CAMS = Import-PowerShellDataFile $PSScriptRoot\cameraModels.psd1
+    $CAMS = Import-PowerShellDataFile $PSScriptRoot\photo-ingest-deviceData.psd1
     Add-Content $CUSTOMTAGS "%Image::ExifTool::UserDefined = ("
     Add-Content $CUSTOMTAGS "`t'Image::ExifTool::Composite' => {"
     Add-Content $CUSTOMTAGS "`t`tCamName => {"
