@@ -12,7 +12,7 @@ Tool(s) I personally use to organize photographs I take using various cameras an
 
 ```sh
 # PowerShell version
-.\photo-ingest.ps1 -SRCDIR C:\Path\To\Directory\With\Images
+.\photo-ingest.ps1 -srcdir C:\Path\To\Directory\With\Images -artist "Copyright Holder" -groupby md -device "iPhone"
 
 # BASH version
 # TODO
