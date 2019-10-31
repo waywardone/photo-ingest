@@ -3,7 +3,7 @@
 
 ## About
 
-Tool(s) I personally use to organize photographs I take using various cameras and phones. This covers the gamut of renaming, rotating and storing them in a personally appealing folder structure.
+Tool(s) I personally use to organize photographs I take using various cameras and phones. This covers the gamut of renaming, rotating, adding copyright notices and storing them in a personally appealing folder structure.
 
 
 
