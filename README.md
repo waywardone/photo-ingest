@@ -14,7 +14,7 @@ Tool(s) I personally use to organize photographs I take using various cameras an
 # PowerShell version
 .\photo-ingest.ps1 -srcdir C:\Path\To\Directory\With\Images -artist "Copyright Holder" -groupby md -device "iPhone"
 
-# BASH version
+# BASH (Linux only) version
 ./photo-ingest.sh -s /path/to/directory/with/images -a "Copyright Holder" -g md -c "iPhone"
 ```
 
