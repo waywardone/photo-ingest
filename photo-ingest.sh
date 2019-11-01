@@ -204,6 +204,7 @@ main()
     renameFiles
     addCopyright
     autoRotate
+    # https://unix.stackexchange.com/questions/27013/displaying-seconds-as-days-hours-mins-seconds
     eval echo $(date -ud "@$SECONDS" +'Time elapsed: $((%s/3600/24)) days %H hours %M mins %S secs')
 }
 
