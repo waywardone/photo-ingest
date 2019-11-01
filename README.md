@@ -1,5 +1,6 @@
 # photo-ingest
 
+![GitHub license](https://img.shields.io/github/license/waywardone/photo-ingest) [![GitHub issues](https://img.shields.io/github/issues/waywardone/photo-ingest)](https://github.com/waywardone/photo-ingest/issues)
 
 ## About
 
