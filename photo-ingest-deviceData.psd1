@@ -73,9 +73,10 @@
     'iPhone 8,1' = 'iP8.1';
     'iPhone' = 'iP';
     'iPhone SE' = 'iPSE';
-    'iPhone X' = 'iPX'
-    'iPhone XS Max' = 'iPXSM'
-    'iPod touch' = 'iPt'
+    'iPhone X' = 'iPX';
+    'iPhone XS' = 'iPXS';
+    'iPhone XS Max' = 'iPXSM';
+    'iPod touch' = 'iPt';
     'KODAK Z712 IS ZOOM DIGITAL CAMERA' = 'Z712IS';
     'Nexus 6' = 'Nex6';
     'NIKON D100' = 'D100';
