@@ -71,7 +71,7 @@ genCustomTags()
 		'Image::ExifTool::Composite' => {
 			CamName => {
 				Require => 'Model',
-				ValueConv => \$val[0]',
+				ValueConv => '\$val[0]',
 				# replace model with nickname
 				PrintConv => {
 EOM
@@ -110,17 +110,81 @@ genCopyrightConfig()
 	-Copyright<Copyright \$createdate, $artist. All rights reserved.
 	-CopyrightNotice<Copyright \$createdate, $artist. All rights reserved.
 	-Rights<Copyright \$createdate, $artist. All rights reserved.
-	-Artist=$artist"
+	-Artist=$artist
 	EOM
+}
+
+adjustTime()
+{
+    if [[ -z $timeoffset ]]; then
+        return
+    fi
+
+    case "$timeoffset" in
+        '+'*)
+            # Jump forward by $timeoffset
+            printf "Moving forward by ${timeoffset#*+} hours in $srcdir\n"
+            exiftool -m -stay_open 1 -f -progress -overwrite_original -ext jpg -ext cr2 -r -P "-AllDates+=${timeoffset#*+}" $srcdir
+            ;;
+        '-'*)
+            # Fall back by $timeoffset
+            printf "Falling back by ${timeoffset#*-} hours in $srcdir\n"
+            exiftool -m -stay_open 1 -f -progress -overwrite_original -ext jpg -ext cr2 -r -P "-AllDates-=${timeoffset#*-}" $srcdir
+            ;;
+        *)
+            { echo >&2 "Unsupported time offset $timeoffset. Aborting."; exit 1; }
+    esac
+
 }
 
 renameFiles()
 {
-    printf "Renaming and copying photos from $srcdir to $destdir"
+    printf "Renaming and copying photos from $srcdir to $destdir\n"
+
+    case "$groupby" in
+        m|M)
+            # Group by month: Example - 2019/10 - October/xxx
+            destGroup="$destdir/%Y/\"%m - %B\"/%Y%m%d-%H%M%S-%%f-%%.3nc-"
+            printf "Grouping by month: Y/m -B/Ymd-HMS-f-i\n"
+        ;;
+        *)
+            destGroup="$destdir/%Y/%m%d/%Y%m%d-%H%M%S-%%f-%%.3nc-"
+            # Default to grouping by month-day: Example - 2019/1030/xxx
+            printf "Grouping by month-day: Y/md/Ymd-HMS-f-i\n"
+        ;;
+    esac
+
+
+    # If a date/time tag specified by -filename doesn't exist, then the option is ignored,
+    # and the last one of these with a valid date/time tag will override earlier ones.
+    # http://u88.n24.queensu.ca/exiftool/forum/index.php?topic=7992.0
+    exiftool -config $customtags -stay_open 1 -f -progress -r -P \
+        -ext jpg -ext cr2 -ext mov -ext mp4 \
+        -o $destdir/%e-files/%f/ -d $destGroup "-filename<\${FileModifyDate}\${CamName}.%le" \
+        "-filename<\${GPSDateTime}\${CamName}.%le" "-filename<\${MediaCreateDate}\${CamName}.%le" \
+        "-filename<\${DateTimeOriginal}\${CamName}.%le" "-filename<\${CreateDate}\${CamName}.%le" \
+        $srcdir
+
+    rm -f $customtags
+}
+
+addCopyright()
+{
+    printf "Updating copyright information in $destdir\n"
+    exiftool -m -@ $copyrightcfg $destdir
+    rm -f $copyrightcfg
+}
+
+autoRotate()
+{
+    printf "Rotating files in $destdir using EXIF orientation info\n"
+    shopt -s globstar
+    jhead -ft -autorot $destdir/**/*.jpg
 }
 
 main()
 {
+    SECONDS=0
     prereqs
     today=$(date +%Y%m%d)
     now=$(date +%Y%m%d-%H%M%S)
@@ -136,10 +200,14 @@ main()
 
     genCopyrightConfig
     genCustomTags
+    adjustTime
     renameFiles
+    addCopyright
+    autoRotate
+    eval echo $(date -ud "@$SECONDS" +'Time elapsed: $((%s/3600/24)) days %H hours %M mins %S secs')
 }
 
-while getopts "o:s:d:a:c:hn" options; do
+while getopts "a:c:d:g:hs:t:" options; do
     case $options in
         a) artist=$OPTARG;;
         c) comment=$OPTARG;;
