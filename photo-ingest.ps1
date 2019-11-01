@@ -66,6 +66,8 @@ function genCustomTagConfig
     Add-Content $CUSTOMTAGS "%Image::ExifTool::UserDefined::Options = ("
     # QuickTime Date/Times are in UTC - http://u88.n24.queensu.ca/exiftool/forum/index.php?topic=7992.0
     Add-Content $CUSTOMTAGS "`t'QuickTimeUTC' => 1,"
+    # Needed for some MOV files: https://sno.phy.queensu.ca/~phil/exiftool/ExifTool.html#ExtractEmbedded 
+    Add-Content $CUSTOMTAGS "`t'ExtractEmbedded' => 1,"
     Add-Content $CUSTOMTAGS ");"
     Add-Content $CUSTOMTAGS "1; #end"
 }

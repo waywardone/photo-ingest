@@ -66,6 +66,9 @@ genCustomTags()
 		# QuickTime Date/Times are in UTC
 		# http://u88.n24.queensu.ca/exiftool/forum/index.php?topic=7992.0
 		'QuickTimeUTC' => 1,
+		# Needed for some MOV files
+		# https://sno.phy.queensu.ca/~phil/exiftool/ExifTool.html#ExtractEmbedded
+		'ExtractEmbedded' => 1,
 	);
 	%Image::ExifTool::UserDefined = (
 		'Image::ExifTool::Composite' => {
@@ -205,7 +208,7 @@ main()
     addCopyright
     autoRotate
     # https://unix.stackexchange.com/questions/27013/displaying-seconds-as-days-hours-mins-seconds
-    eval echo $(date -ud "@$SECONDS" +'Time elapsed: $((%s/3600/24)) days %H hours %M mins %S secs')
+    eval "echo $(date -ud "@$SECONDS" +'Time elapsed: $((%s/3600/24)) days %H hours %M mins %S secs')"
 }
 
 while getopts "a:c:d:g:hs:t:" options; do
