@@ -70,6 +70,7 @@
     'iPhone 7' = 'iP7';
     'iPhone 7 Plus' = 'iP7p';
     'iPhone 8' = 'iP8';
+    'iPhone 8 Plus' = 'iP8p';
     'iPhone 8,1' = 'iP8.1';
     'iPhone 11' = 'iP11';
     'iPhone' = 'iP';
