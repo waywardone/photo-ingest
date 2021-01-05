@@ -17,6 +17,7 @@
     'Canon PowerShot ELPH 100 HS' = 'E100HS';
     'Canon PowerShot G2' = 'G2';
     'Canon PowerShot S200' = 'S200';
+    'Canon PowerShot S45' = 'S45';
     'Canon PowerShot S5 IS' = 'S5IS';
     'Canon PowerShot SD1100 IS' = 'SD1100IS';
     'Canon PowerShot SD200' = 'SD200';
