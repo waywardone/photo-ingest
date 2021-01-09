@@ -102,6 +102,7 @@
     'PENTAX Optio WP' = 'OWP';
     'Pixel 2' = 'PIX2';
     'SAMSUNG-SGH-I747' = 'I747';
+    'TG-4' = 'TG4';
     'u1000/S1000' = 'S1000';
     'u1030SW,S1030SW' = '1030SW';
     'u10D,S300D,u300D' = 'S300D';
