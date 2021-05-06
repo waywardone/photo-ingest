@@ -31,7 +31,7 @@ Usage: ./photo-ingest.sh [-h]
 ```
 
 ## Examples
-Assuming a source directory with the following contents:
+Assuming a source directory with the following contents from an iPhone 6S:
 
 ```bash
 ~/Desktop/DCIM
