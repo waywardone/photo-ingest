@@ -55,7 +55,7 @@ the following invocations:
 ``` 
 
 ```powershell
-.\photo-ingest.ps1 -srcdir C:\Users\User\Desktop/DCIM -artist "John Doe" -groupby md -device "iPhone"
+.\photo-ingest.ps1 -srcdir C:\Users\User\Desktop\DCIM -artist "John Doe" -groupby md -device "iPhone"
 ```
 will produce a directory structure of:
 
