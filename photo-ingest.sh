@@ -13,28 +13,43 @@ usage()
     exit 1;
 }
 
+logD()
+{
+    printf '%s%s%s\n' "$(tput setaf 4)" "${1:-}" "$(tput sgr0)" >&2
+}
+
+logE()
+{
+    printf '%s%s%s\n' "$(tput setaf 1)" "${1:-}" "$(tput sgr0)" >&2
+}
+
+logI()
+{
+    printf '%s%s%s\n' "$(tput setaf 2)" "${1:-}" "$(tput sgr0)" >&2
+}
+
 checkos()
 {
     if [[ "$OSTYPE" == "linux-gnu" ]]; then
         return
     elif [[ "$OSTYPE" == "darwin"* ]]; then
         # Mac OSX
-        { echo >&2 "OS $OSTYPE not supported. Aborting."; exit 1; }
+        { logE "OS $OSTYPE not supported. Aborting."; exit 1; }
     elif [[ "$OSTYPE" == "cygwin" ]]; then
         # POSIX compatibility layer and Linux environment emulation for Windows
-        { echo >&2 "OS $OSTYPE not supported. Aborting."; exit 1; }
+        { logE "OS $OSTYPE not supported. Aborting."; exit 1; }
     elif [[ "$OSTYPE" == "msys" ]]; then
         # Lightweight shell and GNU utilities compiled for Windows (part of MinGW)
-        { echo >&2 "OS $OSTYPE not supported. Aborting."; exit 1; }
+        { logE "OS $OSTYPE not supported. Aborting."; exit 1; }
     elif [[ "$OSTYPE" == "win32" ]]; then
         # I'm not sure this can happen.
-        { echo >&2 "OS $OSTYPE not supported. Aborting."; exit 1; }
+        { logE "OS $OSTYPE not supported. Aborting."; exit 1; }
     elif [[ "$OSTYPE" == "freebsd"* ]]; then
         # ...
-        { echo >&2 "OS $OSTYPE not supported. Aborting."; exit 1; }
+        { logE "OS $OSTYPE not supported. Aborting."; exit 1; }
     else
         # Unknown.
-        { echo >&2 "Unhandled OS $OSTYPE not supported. Aborting."; exit 1; }
+        { logE "Unhandled OS $OSTYPE not supported. Aborting."; exit 1; }
     fi
 }
 
@@ -45,15 +60,15 @@ prereqs()
     for r in $REQUIREMENTS
     do
         # Ref: https://stackoverflow.com/questions/592620
-        hash $r 2>/dev/null || { echo >&2 "$r is not installed. Aborting."; exit 1; }
+        hash $r 2>/dev/null || { logE "$r is not installed. Aborting."; exit 1; }
     done
 
     # Check mandatory arguments
-    [[ ! -z $srcdir ]] || { echo >&2 "srcdir not specified. Aborting."; usage; }
-    [[ ! -z $artist ]] || { echo >&2 "Copyright name not specified. Aborting."; usage; }
+    [[ ! -z $srcdir ]] || { logE "srcdir not specified. Aborting."; usage; }
+    [[ ! -z $artist ]] || { logE "Copyright name not specified. Aborting."; usage; }
 
     # Check source directory
-    [[ -d $srcdir ]] || { echo >&2 "$srcdir doesn't exist. Aborting."; exit 1; }
+    [[ -d $srcdir ]] || { logE "$srcdir doesn't exist. Aborting."; exit 1; }
 }
 
 genCustomTags()
@@ -126,34 +141,34 @@ adjustTime()
     case "$timeoffset" in
         '+'*)
             # Jump forward by $timeoffset
-            printf "Moving forward by ${timeoffset#*+} hours in $srcdir\n"
+            logI "Moving forward by ${timeoffset#*+} hours in $srcdir\n"
             exiftool -m -stay_open 1 -f -progress -overwrite_original -ext jpg -ext cr2 -r -P "-AllDates+=${timeoffset#*+}" $srcdir
             ;;
         '-'*)
             # Fall back by $timeoffset
-            printf "Falling back by ${timeoffset#*-} hours in $srcdir\n"
+            logI "Falling back by ${timeoffset#*-} hours in $srcdir\n"
             exiftool -m -stay_open 1 -f -progress -overwrite_original -ext jpg -ext cr2 -r -P "-AllDates-=${timeoffset#*-}" $srcdir
             ;;
         *)
-            { echo >&2 "Unsupported time offset $timeoffset. Aborting."; exit 1; }
+            { logE "Unsupported time offset $timeoffset. Aborting."; exit 1; }
     esac
 
 }
 
 renameFiles()
 {
-    printf "Renaming and copying photos from $srcdir to $destdir\n"
+    logI "Renaming and copying photos from $srcdir to $destdir\n"
 
     case "$groupby" in
         m|M)
             # Group by month: Example - 2019/10 - October/xxx
             destGroup="$destdir/%Y/\"%m - %B\"/%Y%m%d-%H%M%S-%%f-%%.3nc-"
-            printf "Grouping by month: Y/m -B/Ymd-HMS-f-i\n"
+            logD "Grouping by month: Y/m -B/Ymd-HMS-f-i\n"
         ;;
         *)
             destGroup="$destdir/%Y/%m%d/%Y%m%d-%H%M%S-%%f-%%.3nc-"
             # Default to grouping by month-day: Example - 2019/1030/xxx
-            printf "Grouping by month-day: Y/md/Ymd-HMS-f-i\n"
+            logD "Grouping by month-day: Y/md/Ymd-HMS-f-i\n"
         ;;
     esac
 
@@ -173,14 +188,14 @@ renameFiles()
 
 addCopyright()
 {
-    printf "Updating copyright information in $destdir\n"
+    logI "Updating copyright information in $destdir\n"
     exiftool -m -@ $copyrightcfg $destdir
     rm -f $copyrightcfg
 }
 
 autoRotate()
 {
-    printf "Rotating files in $destdir using EXIF orientation info\n"
+    logI "Rotating files in $destdir using EXIF orientation info\n"
     shopt -s globstar
     jhead -ft -autorot $destdir/**/*.jpg
 }
