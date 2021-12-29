@@ -3,6 +3,9 @@
 ![GitHub license](https://img.shields.io/github/license/waywardone/photo-ingest) [![GitHub issues](https://img.shields.io/github/issues/waywardone/photo-ingest)](https://github.com/waywardone/photo-ingest/issues)
 
 Tool(s) I personally use to organize photographs I take using various cameras and phones. This covers the gamut of renaming, losslessly rotating, adding copyright notices and storing them in a personally appealing folder structure.
+## Pre-requisites
+This workflow relies on [exiftool](https://exiftool.org), [jhead](https://www.sentex.ca/~mwandel/jhead/index.html) and [jpegran](https://www.jpegclub.org/jpegtran/) and expects them to be installed and available.
+
 ## Usage - bash
 
 ```bash
@@ -27,6 +30,7 @@ Usage: ./photo-ingest.sh [-h]
      -fallBackTime      optional - specify number of hours to fall back in timestamps.
      -springForwardTime optional - specify number of hours to spring forward in timestamps.
      -skipCopyright     skip updating copyright notices.
+     -skipRename        skip renaming images.
      -skipRotate        skip lossless rotation of images.
 ```
 
