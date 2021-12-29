@@ -18,6 +18,7 @@ param (
     [string] $springForwardTime,
     [switch] $skipCopyright,
     [switch] $skipRotate,
+    [switch] $skipRename,
     [string] $keywords
 )
 
@@ -113,6 +114,12 @@ function adjustTime
 
 function renameFiles
 {
+    if ($skipRename)
+    {
+        Write-Host "Skipping file rename" -Foregroundcolor Yellow -Backgroundcolor Black
+        return
+    }
+
     Write-Host "Renaming and copying photos from " $srcdir " to " $destdir
 
     # Default to grouping by month-day: Example - 2019/1030/xxx
@@ -158,9 +165,17 @@ function addCopyright
         return
     }
 
-    Write-Host "Updating copyright information for photos in " $destdir
-    &$UTILDIR\exiftool.exe -m -@ $COPYRIGHT $destdir
-    Remove-Item $COPYRIGHT
+    if ($skipRename)
+    {
+        Write-Host "Updating copyright information for photos in " $srcdir
+        &$UTILDIR\exiftool.exe -m -@ $COPYRIGHT $srcdir
+        Remove-Item $COPYRIGHT
+        return
+    } else {
+        Write-Host "Updating copyright information for photos in " $destdir
+        &$UTILDIR\exiftool.exe -m -@ $COPYRIGHT $destdir
+        Remove-Item $COPYRIGHT
+    }
 }
 
 function autoRotateImages
@@ -174,8 +189,14 @@ function autoRotateImages
     {
         Write-Error "Skipping auto-rotate of images - destination directory not found!" -ErrorAction Stop
     }
-    Write-Host "Rotating files in " $destdir " using EXIF orientation info"
-    &$UTILDIR\jhead.exe -ft -autorot $destdir\**\*.jpg
+    if ($skipRename)
+    {
+        Write-Host "Rotating files in " $srcdir " using EXIF orientation info"
+        &$UTILDIR\jhead.exe -ft -autorot $srcdir\**\*.jpg
+    } else {
+        Write-Host "Rotating files in " $destdir " using EXIF orientation info"
+        &$UTILDIR\jhead.exe -ft -autorot $destdir\**\*.jpg
+    }
 }
 
 
