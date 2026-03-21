@@ -1,16 +1,26 @@
 #!/bin/bash
 
+set -euo pipefail
+
+ALL_STEPS="time,rename,copyright,rotate"
+
 usage()
 {
-    printf "Usage: $0 [-h]\n"
-    printf "\t-a <artist>\tname to use in copyright notices.\n"
-    printf "\t-c <comment>\toptional - suffix for destdir.\n"
-    printf "\t-d <destdir>\toptional - specify a destination directory. Defaults to PhotosTODO-YYYYmmdd.\n"
-    printf "\t-g grouping\toptional - 'm' or 'md'. Defaults to 'md'.\n"
-    printf "\t-h\t\tprint this help screen.\n"
-    printf "\t-s <srcdir>\tspecify source directory with images/videos.\n"
-    printf "\t-t <h>\t\toffset picture dates by <h> hours (int or float). +h to jump forward and -h to fall back.\n"
-    exit 1;
+    cat <<-EOM
+    Usage: $0 [-h]
+        -a <artist>   name to use in copyright notices.
+        -c <comment>  optional - suffix for destdir.
+        -d <destdir>  optional - specify a destination directory. Defaults to PhotosTODO-YYYYmmdd.
+        -g grouping   optional - 'm' or 'md'. Defaults to 'md'.
+        -h            print this help screen.
+        -n            dry run - show resolved configuration and steps, then exit.
+        -s <srcdir>   specify source directory with images/videos.
+        -S <steps>    optional - comma-separated list of steps to run.
+                      Valid steps: time,rename,copyright,rotate
+                      Default: all ($ALL_STEPS)
+        -t <h>        offset picture dates by <h> hours (int or float). +h to jump forward and -h to fall back.
+	EOM
+    exit 1
 }
 
 logD()
@@ -28,47 +38,65 @@ logI()
     printf '%s%s%s\n' "$(tput setaf 2)" "${1:-}" "$(tput sgr0)" >&2
 }
 
+logW()
+{
+    printf '%s%s%s\n' "$(tput setaf 3)" "${1:-}" "$(tput sgr0)" >&2
+}
+
+run_step() { [[ ",$steps," == *",$1,"* ]]; }
+
+validate_steps()
+{
+    local valid="time rename copyright rotate"
+    IFS=',' read -ra requested <<< "$steps"
+    for s in "${requested[@]}"; do
+        local found=false
+        for v in $valid; do
+            [[ "$s" == "$v" ]] && found=true && break
+        done
+        if ! $found; then
+            logE "Invalid step '$s'. Valid steps: $valid"
+            exit 1
+        fi
+    done
+}
+
 checkos()
 {
-    if [[ "$OSTYPE" == "linux-gnu" ]]; then
-        return
-    elif [[ "$OSTYPE" == "darwin"* ]]; then
-        # Mac OSX
-        { logE "OS $OSTYPE not supported. Aborting."; exit 1; }
-    elif [[ "$OSTYPE" == "cygwin" ]]; then
-        # POSIX compatibility layer and Linux environment emulation for Windows
-        { logE "OS $OSTYPE not supported. Aborting."; exit 1; }
-    elif [[ "$OSTYPE" == "msys" ]]; then
-        # Lightweight shell and GNU utilities compiled for Windows (part of MinGW)
-        { logE "OS $OSTYPE not supported. Aborting."; exit 1; }
-    elif [[ "$OSTYPE" == "win32" ]]; then
-        # I'm not sure this can happen.
-        { logE "OS $OSTYPE not supported. Aborting."; exit 1; }
-    elif [[ "$OSTYPE" == "freebsd"* ]]; then
-        # ...
-        { logE "OS $OSTYPE not supported. Aborting."; exit 1; }
-    else
-        # Unknown.
-        { logE "Unhandled OS $OSTYPE not supported. Aborting."; exit 1; }
+    if [[ "$OSTYPE" != "linux-gnu"* ]]; then
+        logE "OS $OSTYPE not supported. Only linux-gnu is supported. Aborting."
+        exit 1
     fi
 }
 
 prereqs()
 {
     checkos
-    REQUIREMENTS="exiftool jhead jpegtran"
-    for r in $REQUIREMENTS
-    do
-        # Ref: https://stackoverflow.com/questions/592620
-        hash $r 2>/dev/null || { logE "$r is not installed. Aborting."; exit 1; }
-    done
 
-    # Check mandatory arguments
-    [[ ! -z $srcdir ]] || { logE "srcdir not specified. Aborting."; usage; }
-    [[ ! -z $artist ]] || { logE "Copyright name not specified. Aborting."; usage; }
-
-    # Check source directory
+    # Always required
+    [[ -n $srcdir ]] || { logE "srcdir not specified. Aborting."; usage; }
     [[ -d $srcdir ]] || { logE "$srcdir doesn't exist. Aborting."; exit 1; }
+
+    # exiftool is needed for time, rename, and copyright steps
+    if run_step time || run_step rename || run_step copyright; then
+        command -v exiftool >/dev/null 2>&1 || { logE "exiftool is not installed. Aborting."; exit 1; }
+    fi
+
+    # jhead and jpegtran are needed for rotate
+    if run_step rotate; then
+        command -v jhead >/dev/null 2>&1 || { logE "jhead is not installed. Aborting."; exit 1; }
+        command -v jpegtran >/dev/null 2>&1 || { logE "jpegtran is not installed. Aborting."; exit 1; }
+    fi
+
+    # artist is only needed for copyright
+    if run_step copyright; then
+        [[ -n $artist ]] || { logE "Copyright name not specified. Aborting."; usage; }
+    fi
+
+    # deviceData.props is only needed for rename
+    if run_step rename; then
+        [[ -f "photo-ingest-deviceData.props" ]] || { logE "photo-ingest-deviceData.props not found. Aborting."; exit 1; }
+    fi
 }
 
 genCustomTags()
@@ -76,7 +104,7 @@ genCustomTags()
     # The heredoc uses tabs for indents
     # http://tldp.org/LDP/abs/html/here-docs.html
     # https://stackoverflow.com/questions/9104706
-    cat > $customtags <<EOM
+    cat > "$customtags" <<-EOM
 	%Image::ExifTool::UserDefined::Options = (
 		# QuickTime Date/Times are in UTC
 		# http://u88.n24.queensu.ca/exiftool/forum/index.php?topic=7992.0
@@ -98,19 +126,17 @@ EOM
         case "$key" in
             '#'*);; # Skip comments
             *)
-                printf "\t\t\t\t\t%s\n" "$key => $value," >> $customtags
+                printf "\t\t\t\t\t%s\n" "$key => $value," >> "$customtags"
         esac
     done < photo-ingest-deviceData.props
 
-    cat >> $customtags <<EOM
+    cat >> "$customtags" <<EOM
 				},
 			},
 		},
 	);
 	1; #end
 EOM
-    # Remove first tab introduced as a result of indentation in heredocs above
-    sed -i 's/\t//1' $customtags
 }
 
 genCopyrightConfig()
@@ -118,7 +144,7 @@ genCopyrightConfig()
     # The heredoc *must* use tabs for all indents including the delimiter
     # http://tldp.org/LDP/abs/html/here-docs.html
     # https://stackoverflow.com/questions/9104706
-    cat > $copyrightcfg <<-EOM
+    cat > "$copyrightcfg" <<-EOM
 	-r
 	-P
 	-overwrite_original
@@ -134,41 +160,33 @@ genCopyrightConfig()
 
 adjustTime()
 {
-    if [[ -z $timeoffset ]]; then
-        return
-    fi
+    [[ -z $timeoffset ]] && return
 
-    case "$timeoffset" in
-        '+'*)
-            # Jump forward by $timeoffset
-            logI "Moving forward by ${timeoffset#*+} hours in $srcdir\n"
-            exiftool -m -stay_open 1 -f -progress -overwrite_original -ext jpg -ext cr2 -r -P "-AllDates+=${timeoffset#*+}" $srcdir
-            ;;
-        '-'*)
-            # Fall back by $timeoffset
-            logI "Falling back by ${timeoffset#*-} hours in $srcdir\n"
-            exiftool -m -stay_open 1 -f -progress -overwrite_original -ext jpg -ext cr2 -r -P "-AllDates-=${timeoffset#*-}" $srcdir
-            ;;
-        *)
-            { logE "Unsupported time offset $timeoffset. Aborting."; exit 1; }
-    esac
-
+    local sign="${timeoffset:0:1}"
+    local hours="${timeoffset:1}"
+    [[ "$sign" == "+" || "$sign" == "-" ]] || { logE "Unsupported time offset $timeoffset. Aborting."; exit 1; }
+    logI "Adjusting time by ${timeoffset} hours in $srcdir"
+    exiftool -m -f -progress -overwrite_original -ext jpg -ext cr2 -r -P "-AllDates${sign}=${hours}" "$srcdir"
 }
 
 renameFiles()
 {
-    logI "Renaming and copying photos from $srcdir to $destdir\n"
+    logI "Renaming and copying photos from $srcdir to $destdir"
 
     case "$groupby" in
         m|M)
             # Group by month: Example - 2019/10 - October/xxx
             destGroup="$destdir/%Y/\"%m - %B\"/%Y%m%d-%H%M%S-%%f-%%.3nc-"
-            logD "Grouping by month: Y/m -B/Ymd-HMS-f-i\n"
+            logD "Grouping by month: Y/m -B/Ymd-HMS-f-i"
         ;;
-        *)
+        md|MD)
             destGroup="$destdir/%Y/%m%d/%Y%m%d-%H%M%S-%%f-%%.3nc-"
             # Default to grouping by month-day: Example - 2019/1030/xxx
-            logD "Grouping by month-day: Y/md/Ymd-HMS-f-i\n"
+            logD "Grouping by month-day: Y/md/Ymd-HMS-f-i"
+        ;;
+        *)
+            logE "Invalid groupby value: $groupby. Use 'm' or 'md'."
+            exit 1
         ;;
     esac
 
@@ -176,64 +194,183 @@ renameFiles()
     # If a date/time tag specified by -filename doesn't exist, then the option is ignored,
     # and the last one of these with a valid date/time tag will override earlier ones.
     # http://u88.n24.queensu.ca/exiftool/forum/index.php?topic=7992.0
-    exiftool -config $customtags -stay_open 1 -f -progress -r -P \
+    exiftool -config "$customtags" -f -progress -r -P \
         -ext jpg -ext cr2 -ext mov -ext mp4 \
-        -o $destdir/%e-files/%f/ -d $destGroup "-filename<\${FileModifyDate}\${CamName}.%le" \
+        -o "$destdir"/%e-files/%f/ -d "$destGroup" "-filename<\${FileModifyDate}\${CamName}.%le" \
         "-filename<\${GPSDateTime}\${CamName}.%le" "-filename<\${MediaCreateDate}\${CamName}.%le" \
         "-filename<\${DateTimeOriginal}\${CamName}.%le" "-filename<\${CreateDate}\${CamName}.%le" \
-        $srcdir
-
-    rm -f $customtags
+        "$srcdir"
 }
 
 addCopyright()
 {
-    logI "Updating copyright information in $destdir\n"
-    exiftool -m -@ $copyrightcfg $destdir
-    rm -f $copyrightcfg
+    logI "Updating copyright information in $workdir"
+    exiftool -m -@ "$copyrightcfg" "$workdir"
 }
 
 autoRotate()
 {
-    logI "Rotating files in $destdir using EXIF orientation info\n"
-    shopt -s globstar
-    jhead -ft -autorot $destdir/**/*.jpg
+    logI "Rotating files in $workdir using EXIF orientation info"
+    shopt -s globstar nullglob nocaseglob
+    local files=("$workdir"/**/*.jpg)
+    shopt -u nocaseglob
+    if (( ${#files[@]} == 0 )); then
+        return
+    fi
+
+    # jhead internally builds an unescaped shell command when invoking
+    # jpegtran, so filenames containing apostrophes or other special
+    # characters cause "Command has invalid characters" errors.
+    # Work around this by processing each file through a temporary
+    # hard-link whose name is guaranteed to be shell-safe.
+    # The temp dir is created on the same filesystem as workdir so that
+    # hard links work (hard links cannot cross filesystem boundaries).
+    local tmpdir
+    tmpdir=$(mktemp -d "$workdir/.photo-ingest-rotate-XXXXXX")
+    local i=0
+    for f in "${files[@]}"; do
+        local safename="$tmpdir/$((i++)).jpg"
+        ln "$f" "$safename"
+        jhead -ft -autorot "$safename" || logW "Nonfatal: jhead failed on '$f'"
+        rm -f "$safename"
+    done
+    rm -rf "$tmpdir"
+}
+
+dryRun()
+{
+    if run_step rename; then
+        workdir="$destdir"
+    else
+        workdir="$srcdir"
+    fi
+
+    local destdir_display="$destdir"
+    run_step rename || destdir_display="(not used - rename step skipped)"
+
+    local offset_display="${timeoffset:-(none)}"
+    local groupby_display="$groupby"
+    case "$groupby" in
+        m|M)  groupby_display="$groupby (Y/m - B/Ymd-HMS-f-i)";;
+        md|MD) groupby_display="$groupby (Y/md/Ymd-HMS-f-i)";;
+    esac
+
+    cat >&2 <<-EOM
+	[dry-run] photo-ingest configuration:
+	  artist:       $artist
+	  srcdir:       $srcdir
+	  destdir:      $destdir_display
+	  groupby:      $groupby_display
+	  timeoffset:   $offset_display
+	  steps:        $steps
+	  workdir:      $workdir
+	EOM
+
+    logD "[dry-run] step plan:"
+    local i=0
+    for step_name in time rename copyright rotate; do
+        i=$((i + 1))
+        if run_step "$step_name"; then
+            case "$step_name" in
+                time)
+                    if [[ -n "$timeoffset" ]]; then
+                        logI "  $i. adjustTime      -> exiftool AllDates${timeoffset} on $srcdir"
+                    else
+                        logW "  $i. adjustTime      -> no offset specified, will be a no-op"
+                    fi
+                    ;;
+                rename)    logI "  $i. renameFiles     -> copy from $srcdir to $destdir";;
+                copyright) logI "  $i. addCopyright    -> apply to $workdir";;
+                rotate)    logI "  $i. autoRotate      -> jhead -autorot on $workdir";;
+            esac
+        else
+            logW "  $i. $(printf '%-14s' "$step_name") -> SKIP"
+        fi
+    done
+
+    logI "[dry-run] no changes made. Remove -n to execute."
 }
 
 main()
 {
     SECONDS=0
+    validate_steps
     prereqs
     today=$(date +%Y%m%d)
-    now=$(date +%Y%m%d-%H%M%S)
-    desktop="/home/${USER}/Desktop"
+    desktop="${HOME}/Desktop"
 
     [[ -z $destdir ]] && destdir="${desktop}/PhotosTODO-${today}"
-    [[ ! -z $comment ]] && destdir="${destdir}-${comment}"
+    [[ -n $comment ]] && destdir="${destdir}-${comment}"
 
-    copyrightcfg="${destdir}/exiftool-copyright-$now.txt"
-    customtags="${destdir}/exiftool-customtags-$now.txt"
+    # Determine working directory for post-rename steps (copyright, rotate).
+    # When rename is active, these operate on the destination.
+    # When rename is skipped, they operate on the source in-place.
+    if run_step rename; then
+        workdir="$destdir"
+    else
+        workdir="$srcdir"
+    fi
 
-    mkdir -p $destdir
+    if $dryrun; then
+        dryRun
+        exit 0
+    fi
+
+    customtags=$(mktemp /tmp/exiftool-customtags-XXXXXX)
+    copyrightcfg=$(mktemp /tmp/exiftool-copyright-XXXXXX)
+    trap 'rm -f "$customtags" "$copyrightcfg"' EXIT
 
     genCopyrightConfig
     genCustomTags
-    adjustTime
-    renameFiles
-    addCopyright
-    autoRotate
-    # https://unix.stackexchange.com/questions/27013/displaying-seconds-as-days-hours-mins-seconds
-    eval "echo $(date -ud "@$SECONDS" +'Time elapsed: $((%s/3600/24)) days %H hours %M mins %S secs')"
-}
 
-while getopts "a:c:d:g:hs:t:" options; do
+    if run_step time; then
+        adjustTime
+    else
+        logW "Skipping time adjustment"
+    fi
+
+    if run_step rename; then
+        mkdir -p "$destdir"
+        renameFiles
+    else
+        logW "Skipping file rename"
+    fi
+
+    if run_step copyright; then
+        addCopyright
+    else
+        logW "Skipping copyright update"
+    fi
+
+    if run_step rotate; then
+        autoRotate
+    else
+        logW "Skipping auto-rotate"
+    fi
+
+    local h=$((SECONDS / 3600))
+    local m=$(( (SECONDS % 3600) / 60 ))
+    local s=$((SECONDS % 60))
+    logI "Time elapsed: ${h}h ${m}m ${s}s"
+}
+artist=""
+comment=""
+destdir=""
+dryrun=false
+groupby="md"
+srcdir=""
+steps="$ALL_STEPS"
+timeoffset=""
+while getopts "a:c:d:g:hns:S:t:" options; do
     case $options in
         a) artist=$OPTARG;;
         c) comment=$OPTARG;;
         d) destdir=$OPTARG;;
         g) groupby=$OPTARG;;
         h) usage;;
+        n) dryrun=true;;
         s) srcdir=$OPTARG;;
+        S) steps=$OPTARG;;
         t) timeoffset=$OPTARG;;
         \?) usage;;
         *) usage;;
