@@ -81,6 +81,7 @@
     'iPhone 14' = 'iP14';
     'iPhone 14 Pro' = 'iP14p';
     'iPhone 14 Pro Max' = 'iP14pm';
+    'iPhone 17' = 'iP17';
     'iPhone' = 'iP';
     'iPhone SE' = 'iPSE';
     'iPhone X' = 'iPX';
