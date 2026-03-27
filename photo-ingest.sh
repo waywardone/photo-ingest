@@ -77,14 +77,13 @@ prereqs()
     [[ -n $srcdir ]] || { logE "srcdir not specified. Aborting."; usage; }
     [[ -d $srcdir ]] || { logE "$srcdir doesn't exist. Aborting."; exit 1; }
 
-    # exiftool is needed for time, rename, and copyright steps
-    if run_step time || run_step rename || run_step copyright; then
+    # exiftool is needed for time, rename, copyright, and rotate steps
+    if run_step time || run_step rename || run_step copyright || run_step rotate; then
         command -v exiftool >/dev/null 2>&1 || { logE "exiftool is not installed. Aborting."; exit 1; }
     fi
 
-    # jhead and jpegtran are needed for rotate
+    # jpegtran is needed for rotate
     if run_step rotate; then
-        command -v jhead >/dev/null 2>&1 || { logE "jhead is not installed. Aborting."; exit 1; }
         command -v jpegtran >/dev/null 2>&1 || { logE "jpegtran is not installed. Aborting."; exit 1; }
     fi
 
@@ -215,26 +214,69 @@ autoRotate()
     local files=("$workdir"/**/*.jpg)
     shopt -u nocaseglob
     if (( ${#files[@]} == 0 )); then
+        logW "No JPEG files found in $workdir"
         return
     fi
 
-    # jhead internally builds an unescaped shell command when invoking
-    # jpegtran, so filenames containing apostrophes or other special
-    # characters cause "Command has invalid characters" errors.
-    # Work around this by processing each file through a temporary
-    # hard-link whose name is guaranteed to be shell-safe.
-    # The temp dir is created on the same filesystem as workdir so that
-    # hard links work (hard links cannot cross filesystem boundaries).
-    local tmpdir
-    tmpdir=$(mktemp -d "$workdir/.photo-ingest-rotate-XXXXXX")
-    local i=0
+    local total=${#files[@]}
+    local current=0
+    local rotated=0
+    local skipped=0
+    logI "Found $total JPEG file(s) to check for rotation"
+
+    local progress_interval=$(( total / 20 ))
+    (( progress_interval < 10 )) && progress_interval=10
+
     for f in "${files[@]}"; do
-        local safename="$tmpdir/$((i++)).jpg"
-        ln "$f" "$safename"
-        jhead -ft -autorot "$safename" || logW "Nonfatal: jhead failed on '$f'"
-        rm -f "$safename"
+        current=$((current + 1))
+        if (( current % progress_interval == 0 )); then
+            logD "  [$current/$total] Processing..."
+        fi
+
+        # Read orientation; skip if already normal or unset
+        local orient
+        orient=$(exiftool -n -s3 -Orientation "$f" 2>/dev/null) || continue
+        if [[ -z "$orient" || "$orient" == "1" ]]; then
+            skipped=$((skipped + 1))
+            continue
+        fi
+
+        local transform=""
+        case "$orient" in
+            2) transform="-flip horizontal";;
+            3) transform="-rotate 180";;
+            4) transform="-flip vertical";;
+            5) transform="-transpose";;
+            6) transform="-rotate 90";;
+            7) transform="-transverse";;
+            8) transform="-rotate 270";;
+            *) logW "Unknown orientation $orient for '$f'"; continue;;
+        esac
+
+        # jpegtran writes to a temp file; create it alongside the
+        # original so it's always on the same filesystem.
+        local tmpfile
+        tmpfile=$(mktemp "${f}.XXXXXX") || { logW "Nonfatal: mktemp failed for '$f'"; continue; }
+        # unquoted vars in jpegtran invocation is intentional
+        # $transform can be `-flip horizontal`, etc. These are two separate
+        # arguments that jpegtran expects as separate words.
+        # shellcheck disable=SC2086
+        if jpegtran -copy all -trim $transform -outfile "$tmpfile" "$f"; then
+            touch -r "$f" "$tmpfile"
+            mv -f "$tmpfile" "$f"
+            # Clear orientation tag and set file timestamp from EXIF
+            exiftool -q -q -m -P -overwrite_original \
+                '-Orientation=Horizontal (normal)' \
+                '-FileModifyDate<DateTimeOriginal' \
+                "$f" || logW "Nonfatal: exiftool post-rotate failed on '$f'"
+            rotated=$((rotated + 1))
+            logD "  [$current/$total] Rotated (orient=$orient): ${f##*/}"
+        else
+            logW "Nonfatal: jpegtran failed on '$f'"
+            rm -f "$tmpfile"
+        fi
     done
-    rm -rf "$tmpdir"
+    logI "Rotation complete: $rotated rotated, $skipped already normal, $((total - rotated - skipped)) skipped/failed"
 }
 
 dryRun()
@@ -281,7 +323,7 @@ dryRun()
                     ;;
                 rename)    logI "  $i. renameFiles     -> copy from $srcdir to $destdir";;
                 copyright) logI "  $i. addCopyright    -> apply to $workdir";;
-                rotate)    logI "  $i. autoRotate      -> jhead -autorot on $workdir";;
+                rotate)    logI "  $i. autoRotate      -> exiftool+jpegtran on $workdir";;
             esac
         else
             logW "  $i. $(printf '%-14s' "$step_name") -> SKIP"
