@@ -204,7 +204,7 @@ renameFiles()
 addCopyright()
 {
     logI "Updating copyright information in $workdir"
-    exiftool -m -@ "$copyrightcfg" "$workdir"
+    exiftool -q -q -m -@ "$copyrightcfg" "$workdir"
 }
 
 autoRotate()
@@ -241,15 +241,15 @@ autoRotate()
             continue
         fi
 
-        local transform=""
+        local transform="" orient_label=""
         case "$orient" in
-            2) transform="-flip horizontal";;
-            3) transform="-rotate 180";;
-            4) transform="-flip vertical";;
-            5) transform="-transpose";;
-            6) transform="-rotate 90";;
-            7) transform="-transverse";;
-            8) transform="-rotate 270";;
+            2) transform="-flip horizontal";  orient_label="Mirror horizontal";;
+            3) transform="-rotate 180";       orient_label="Rotate 180";;
+            4) transform="-flip vertical";    orient_label="Mirror vertical";;
+            5) transform="-transpose";        orient_label="Mirror horizontal and rotate 270 CW";;
+            6) transform="-rotate 90";        orient_label="Rotate 90 CW";;
+            7) transform="-transverse";       orient_label="Mirror horizontal and rotate 90 CW";;
+            8) transform="-rotate 270";       orient_label="Rotate 270 CW";;
             *) logW "Unknown orientation $orient for '$f'"; continue;;
         esac
 
@@ -270,7 +270,7 @@ autoRotate()
                 '-FileModifyDate<DateTimeOriginal' \
                 "$f" || logW "Nonfatal: exiftool post-rotate failed on '$f'"
             rotated=$((rotated + 1))
-            logD "  [$current/$total] Rotated (orient=$orient): ${f##*/}"
+            logD "  [$current/$total] Rotated ($orient_label): ${f##*/}"
         else
             logW "Nonfatal: jpegtran failed on '$f'"
             rm -f "$tmpfile"
